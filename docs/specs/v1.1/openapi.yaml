@@ -1,0 +1,521 @@
+openapi: 3.1.0
+info:
+  title: ResearchBridge Phase 1 API
+  version: 1.1.0
+  description: OpenAI-first, Docling-primary, local MongoDB-backed Phase 1 contract.
+servers:
+  - url: http://localhost:8000
+paths:
+  /api/v1/upload:
+    post:
+      operationId: uploadPaper
+      summary: Upload a research paper PDF.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Upload accepted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseUpload"
+  /api/v1/process:
+    post:
+      operationId: processPaper
+      summary: Start or resume processing for a paper.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProcessRequest"
+      responses:
+        "200":
+          description: Processing accepted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseProcess"
+  /api/v1/status/{paper_id}:
+    get:
+      operationId: getPaperStatus
+      summary: Get processing status.
+      parameters:
+        - in: path
+          name: paper_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Current status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseStatus"
+  /api/v1/papers/{paper_id}:
+    get:
+      operationId: getPaper
+      summary: Get processed paper document.
+      parameters:
+        - in: path
+          name: paper_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Stored paper document.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponsePaper"
+  /api/v1/chat:
+    post:
+      operationId: chatOverPaper
+      summary: Ask grounded questions over a paper.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+      responses:
+        "200":
+          description: Grounded chat response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseChat"
+  /api/v1/compare:
+    post:
+      operationId: comparePapers
+      summary: Compare two processed papers side-by-side.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompareRequest"
+      responses:
+        "200":
+          description: Comparison payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseCompare"
+  /api/v1/reprocess-level:
+    post:
+      operationId: reprocessLevel
+      summary: Re-run level adaptation only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReprocessLevelRequest"
+      responses:
+        "200":
+          description: Level-adapted output refreshed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponsePaper"
+components:
+  schemas:
+    Confidence:
+      type: string
+      enum: [high, medium, low]
+    UserLevel:
+      type: string
+      enum: [beginner, intermediate, advanced]
+    ApiError:
+      type: object
+      required: [code, message, details]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+    ApiEnvelopeBase:
+      type: object
+      required: [ok, request_id]
+      properties:
+        ok:
+          type: boolean
+        request_id:
+          type: string
+        error:
+          oneOf:
+            - $ref: "#/components/schemas/ApiError"
+            - type: "null"
+    ProcessRequest:
+      type: object
+      required: [paper_id, user_level]
+      properties:
+        paper_id:
+          type: string
+        user_level:
+          $ref: "#/components/schemas/UserLevel"
+    ProcessingState:
+      type: string
+      enum:
+        - uploaded
+        - parsing
+        - parsed
+        - chunked
+        - tagged
+        - extracting
+        - verifying
+        - aggregated
+        - adapted
+        - completed
+        - failed
+    ChatRequest:
+      type: object
+      required: [paper_id, question]
+      properties:
+        paper_id:
+          type: string
+        question:
+          type: string
+        user_level:
+          $ref: "#/components/schemas/UserLevel"
+    CompareRequest:
+      type: object
+      required: [left_paper_id, right_paper_id, user_level]
+      properties:
+        left_paper_id:
+          type: string
+        right_paper_id:
+          type: string
+        user_level:
+          $ref: "#/components/schemas/UserLevel"
+    ReprocessLevelRequest:
+      type: object
+      required: [paper_id, target_user_level]
+      properties:
+        paper_id:
+          type: string
+        target_user_level:
+          $ref: "#/components/schemas/UserLevel"
+    Citation:
+      type: object
+      required: [source_chunk_id]
+      properties:
+        source_chunk_id:
+          type: string
+    ImplementationStep:
+      type: object
+      required: [step, title, description, confidence, citations]
+      properties:
+        step:
+          type: integer
+          minimum: 1
+        title:
+          type: string
+        description:
+          type: string
+        level_notes:
+          type: string
+        confidence:
+          $ref: "#/components/schemas/Confidence"
+        citations:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/Citation"
+    ProcessedPaper:
+      type: object
+      required:
+        - schema_version
+        - paper_id
+        - title
+        - source_file
+        - processed_at
+        - user_level
+        - processing
+        - core_idea
+        - problem
+        - implementation
+        - architecture
+        - tools
+        - challenges
+        - comparison_ready
+        - citations
+        - audit
+      properties:
+        schema_version:
+          type: string
+          const: "1.1.0"
+        paper_id:
+          type: string
+        title:
+          type: string
+        source_file:
+          type: string
+        processed_at:
+          type: string
+          format: date-time
+        user_level:
+          $ref: "#/components/schemas/UserLevel"
+        processing:
+          type: object
+          required: [state]
+          properties:
+            state:
+              $ref: "#/components/schemas/ProcessingState"
+            timings_ms:
+              type: object
+              additionalProperties:
+                type: integer
+                minimum: 0
+        core_idea:
+          type: object
+          required: [summary, intuition, confidence, citations]
+          properties:
+            summary:
+              type: string
+            intuition:
+              type: string
+            confidence:
+              $ref: "#/components/schemas/Confidence"
+            citations:
+              type: array
+              minItems: 1
+              items:
+                $ref: "#/components/schemas/Citation"
+        problem:
+          type: object
+          required: [description, why_it_matters, confidence, citations]
+          properties:
+            description:
+              type: string
+            why_it_matters:
+              type: string
+            confidence:
+              $ref: "#/components/schemas/Confidence"
+            citations:
+              type: array
+              minItems: 1
+              items:
+                $ref: "#/components/schemas/Citation"
+        implementation:
+          type: object
+          required: [steps, inputs_outputs]
+          properties:
+            steps:
+              type: array
+              items:
+                $ref: "#/components/schemas/ImplementationStep"
+            inputs_outputs:
+              type: object
+              required: [input, output]
+              properties:
+                input:
+                  type: string
+                output:
+                  type: string
+        architecture:
+          type: object
+          required: [pipeline, description, confidence, citations]
+          properties:
+            pipeline:
+              type: array
+              items:
+                type: string
+            description:
+              type: string
+            confidence:
+              $ref: "#/components/schemas/Confidence"
+            citations:
+              type: array
+              minItems: 1
+              items:
+                $ref: "#/components/schemas/Citation"
+        tools:
+          type: object
+          required: [libraries, frameworks, notes, confidence, citations]
+          properties:
+            libraries:
+              type: array
+              items:
+                type: string
+            frameworks:
+              type: array
+              items:
+                type: string
+            notes:
+              type: string
+            confidence:
+              $ref: "#/components/schemas/Confidence"
+            citations:
+              type: array
+              minItems: 1
+              items:
+                $ref: "#/components/schemas/Citation"
+        challenges:
+          type: array
+          items:
+            type: object
+            required: [challenge, confidence, citations]
+            properties:
+              challenge:
+                type: string
+              confidence:
+                $ref: "#/components/schemas/Confidence"
+              citations:
+                type: array
+                minItems: 1
+                items:
+                  $ref: "#/components/schemas/Citation"
+        analogy:
+          type: string
+        comparison_ready:
+          type: boolean
+        citations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Citation"
+        audit:
+          type: array
+          items:
+            type: object
+            required: [event_time, stage, event_type, event_payload]
+            properties:
+              event_time:
+                type: string
+                format: date-time
+              stage:
+                type: string
+              event_type:
+                type: string
+              event_payload:
+                type: object
+                additionalProperties: true
+    UploadData:
+      type: object
+      required: [paper_id, source_file, status]
+      properties:
+        paper_id:
+          type: string
+        source_file:
+          type: string
+        status:
+          $ref: "#/components/schemas/ProcessingState"
+    ProcessData:
+      type: object
+      required: [paper_id, state]
+      properties:
+        paper_id:
+          type: string
+        state:
+          $ref: "#/components/schemas/ProcessingState"
+    StatusData:
+      type: object
+      required: [paper_id, state]
+      properties:
+        paper_id:
+          type: string
+        state:
+          $ref: "#/components/schemas/ProcessingState"
+        last_error:
+          oneOf:
+            - $ref: "#/components/schemas/ApiError"
+            - type: "null"
+    ChatData:
+      type: object
+      required: [answer, confidence, citations]
+      properties:
+        answer:
+          type: string
+        confidence:
+          $ref: "#/components/schemas/Confidence"
+        citations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Citation"
+    CompareData:
+      type: object
+      required: [left_paper_id, right_paper_id, similarities, differences, implementation_delta, confidence_summary]
+      properties:
+        left_paper_id:
+          type: string
+        right_paper_id:
+          type: string
+        similarities:
+          type: array
+          items:
+            type: string
+        differences:
+          type: array
+          items:
+            type: string
+        implementation_delta:
+          type: array
+          items:
+            type: string
+        confidence_summary:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/Confidence"
+    ApiResponseUpload:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelopeBase"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/UploadData"
+    ApiResponseProcess:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelopeBase"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/ProcessData"
+    ApiResponseStatus:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelopeBase"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/StatusData"
+    ApiResponsePaper:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelopeBase"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/ProcessedPaper"
+    ApiResponseChat:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelopeBase"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/ChatData"
+    ApiResponseCompare:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelopeBase"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/CompareData"

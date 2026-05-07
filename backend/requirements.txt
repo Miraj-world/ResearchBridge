@@ -1,0 +1,25 @@
+# Recommended on Windows: Python 3.12 or 3.13
+
+# API
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+pydantic==2.11.7
+python-multipart==0.0.20
+python-dotenv==1.0.1
+
+# Storage
+pymongo==4.10.1
+
+# LLM
+anthropic==0.67.0
+langchain==0.3.18
+
+# PDF extraction pipeline
+# start.bat preflight checks for docling, fitz, pytesseract, and tesseract.exe on PATH
+docling==2.43.0
+PyMuPDF==1.25.1
+pytesseract==0.3.13
+Pillow==11.0.0
+
+# System dependency (not pip-installable):
+# - Tesseract OCR binary must be installed and on PATH
